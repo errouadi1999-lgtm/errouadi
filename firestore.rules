@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: channels
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required)
+    //   - category: string (required)
+    //   - streamUrl: string (required, URL)
+    //   - logoUrl: string (optional, URL)
+    //   - description: string (optional)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidChannel(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.category is string && data.category.size() > 0 &&
+             data.streamUrl is string && data.streamUrl.matches("^https?://.*") &&
+             (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.matches("^https?://.*"))) &&
+             (!('description' in data) || (data.description is string && data.description.size() < 1000));
+    }
+
+    match /channels/{channelId} {
+      // Allow anyone to read channels (for IPTV app)
+      // In a real app, you might want to restrict this to authenticated users
+      allow read: if true;
+      
+      // Only admins can modify channels
+      allow write: if isAuthenticated() && 
+                   (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+                    request.auth.token.email == "errouadi1999@gmail.com");
+    }
+
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
